@@ -1,0 +1,208 @@
+# #!/bin/bash
+
+exec > >(tee -ia "$PWD/../script.log") 2>&1
+
+uninstall_java() {
+
+    sudo apt purge -y openjdk-\* >/dev/null 2>&1
+    sudo apt autoremove -y >/dev/null 2>&1
+    sudo apt clean >/dev/null 2>&1
+    sudo rm -rf /usr/lib/jvm/
+    sudo rm -rf /usr/local/java/
+    sudo rm -rf /usr/local/jdk/
+    sudo rm -rf ~/.java
+}
+
+choice=$(zenity --list --title="Configuration Menu" --text="Select what you want to configure:" --column="Choice" --column="Action" --width=800 --height=400 \
+    "RAM Configuration" "Configure RAM" \
+    "Ngrok Region Configuration" "Configure Ngrok Region" \
+    "Java Configuration" "Configure Java Version" \
+    "Reinstall Server" "Reinstall Server Components" \
+    "Uninstall Server" "Uninstall Server and Dependencies" \
+    "Exit" "Exit Configuration")
+
+if [ $? -ne 0 ]; then
+    # User canceled or closed the dialog
+    echo "Exited Configuration."
+    ./Minever
+fi
+
+file="start"
+
+case "$choice" in
+"RAM Configuration")
+    ram=$(zenity --scale --title="RAM Configuration" --text="Enter RAM (1-20)" --value="20" --min-value="1" --max-value="20" –step="5" --width=800 --height=400)
+    if [ $? -eq 0 ] && [[ "$ram" =~ ^[1-9][0-9]*$ ]] && [ "$ram" -le 20 ]; then
+
+        line=6
+        sed -i "${line}s/[0-9]\+/${ram}/g" "$file"
+        echo -e "\e[33mRAM set to ${ram}G!\e[0m"
+        zenity --info --text="RAM set to ${ram}G"
+
+        if [ "$ram" -ge 1 ] && [ "$ram" -le 12 ]; then
+            line=7
+            if sed -n "${line}p" "$file" | grep -qE "^\s*#"; then
+                sed -i "${line}s/^\s*#//g" "$file"
+                # echo "Line $line uncommented."
+
+                line=8
+                sed -i "${line}s/^/#/g" "$file"
+                # echo "Line $line commented."
+            fi
+
+        elif [ "$ram" -ge 13 ] && [ "$ram" -le 20 ]; then
+            line=8
+            if sed -n "${line}p" "$file" | grep -qE "^\s*#"; then
+                sed -i "${line}s/^\s*#//g" "$file"
+                # echo "Line $line uncommented."
+
+                line=7
+                sed -i "${line}s/^/#/g" "$file"
+                # echo "Line $line commented."
+
+            fi
+        fi
+
+    else
+        zenity --error --text="Invalid input. RAM must be a positive integer between 1 and 20."
+
+        echo -e "\e[33mInvalid input. Please enter a positive integer.\e[0m"
+
+        line=6
+        sed -i "${line}s/[0-9]\+/1/g" "$file"
+    fi
+    ;;
+"Ngrok Region Configuration")
+
+    if [ ! -f "$PWD/script/ngrok" ]; then
+        echo -e "\e[33mNo Ngrok Installation found!\e[0m"
+        zenity --error --text="Ngrok not installed!\nInstall Ngrok to continue" 
+        
+    else
+        region=$(zenity --list --title="Ngrok Region Configuration" --text="<b>Select an region closest to you:</b>" --column="Choice" --column="Action" --width=800 --height=400 \
+            "ap" "Asia/Pacific (Singapore)" \
+            "eu" "Australia (Sydney)" \
+            "in" "India (Mumbai)" \
+            "jp" "Japan (Tokyo)" \
+            "sa" "South America (São Paulo)" \
+            "us" "United States (Ohio)")
+
+        line=30
+        if [ $? -eq 0 ] && [ -n "$region" ]; then
+            # Update Ngrok region configuration here
+
+            sed -i "${line}s/tcp/tcp -region=$region/g" "$file"
+            echo -e "\e[32mYour Region has been changed!\e[0m"
+            zenity --info --text="Ngrok region set to $region"
+
+        else
+
+            sed -i "${line}s/tcp -region=[a-zA-Z]\+/tcp/g" "$file"
+            echo -e "\e[33mRegion has been reset to it's Default value.\e[0m"
+            zenity --error --text="Invalid input. Ngrok region cannot be empty."
+        fi
+    fi
+    ;;
+"Java Configuration")
+    java_version=$(zenity --list --title="Java Configuration" --text="Select Java version:" --column="Version" --column="Description" --width=800 --height=400 \
+        "Java-17" "All Minecraft versions (Default)" \
+        "Java-11" "Minecraft versions 1.17 and above" \
+        "Java-8" "Minecraft versions 1.16 and below" \
+        "Uninstall Java" "Uninstall Java")
+    if [ $? -eq 0 ]; then
+        case "$java_version" in
+        "Java-17")
+            # Install Java-17 or display an error if it's already installed
+            (
+                echo "10"
+                sleep 1
+                echo "50"
+                sleep 1
+                echo "100"
+            ) | zenity --progress --pulsate --auto-close --width=400 --text="Installing Java-8..."
+
+            if ! command -v java &>/dev/null; then
+                sudo apt install openjdk-8-jre-headless -qq -y >/dev/null 2>&1
+                zenity --info --text="Java 8 has been installed!"
+            else
+                zenity --info --text="Java-8 installed (or already installed)"
+            fi
+            ;;
+        "Java-11")
+            # Install Java-11 or display an error if it's already installed
+            (
+                echo "10"
+                sleep 1
+                echo "50"
+                sleep 1
+                echo "100"
+            ) | zenity --progress --pulsate --auto-close --width=400 --text="Installing Java-8..."
+
+            if ! command -v java &>/dev/null; then
+                sudo apt install openjdk-11-jre-headless -qq -y >/dev/null 2>&1
+                zenity --info --text="Java 11 has been installed!"
+            else
+                zenity --info --text="Java-11 installed (or already installed)"
+            fi
+            ;;
+        "Java-8")
+            # Install Java-8 or display an error if it's already installed
+            (
+                echo "10"
+                sleep 1
+                echo "50"
+                sleep 1
+                echo "100"
+            ) | zenity --progress --pulsate --auto-close --width=400 --text="Installing Java-8..."
+
+            if ! command -v java &>/dev/null; then
+                sudo apt install openjdk-8-jre-headless -qq -y >/dev/null 2>&1
+                zenity --info --text="Java 8 has been installed!"
+            else
+                zenity --info --text="Java-8 installed (or already installed)"
+            fi
+            ;;
+        "Uninstall Java")
+            # Uninstall Java
+
+            (
+                echo "10"
+                sleep 1
+                echo "50"
+                sleep 1
+                echo "100"
+            ) | zenity --progress --pulsate --auto-close --width=400 --text="Uninstalling java..." &
+            if command -v java &>/dev/null; then
+                uninstall_java
+                zenity --info --text="Java has been Uninstalled!"
+            else
+                clear
+                zenity --info --text="No java installation found"
+            fi
+            ;;
+        *)
+            zenity --error --text="Invalid Java version selection."
+            ./../Minever
+            ;;
+        esac
+    else
+        zenity --error --text="Java configuration canceled."
+    fi
+    ;;
+
+"Reinstall Server")
+    . script/control
+    reinstall
+    ;;
+"Uninstall Server")
+    . script/control
+    uninstall_server
+    ;;
+"Exit")
+    echo "Exited Configuration."
+    exit 0
+    ;;
+*)
+    zenity --error --text="Invalid choice."
+    ;;
+esac

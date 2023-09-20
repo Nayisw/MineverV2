@@ -1,0 +1,307 @@
+#!/bin/bash
+
+exec > >(tee -ia "$PWD/../script.log") 2>&1
+
+# Server Control
+
+stop() {
+    # Check if script.log file exists
+    if [ ! -f "$PWD/server/script.log" ]; then
+        echo "No active server found"
+        exit 1
+    else
+        # Display a confirmation dialog
+        zenity --question \
+            --title "Server Termination" \
+            --text "Are you sure you want to terminate the server?" \
+            --ok-label="Yes" \
+            --cancel-label="No"
+
+        if [ $? = 0 ]; then # Clicked "Yes"
+
+            killall screen # Kill all screen sessions
+
+            # Display messages
+            zenity --info \
+                --title "Server Terminated" \
+                --text "Server has been terminated." \
+                --no-markup
+            exit 0
+        else # Clicked "No"
+            exit 1
+        fi
+    fi
+}
+
+# Installations
+
+vanilla() {
+
+    # Vanilla setup logic
+    if test -d $PWD/server; then
+        rm -r server
+    fi
+    mkdir -p $PWD/server && cd $PWD/server
+
+    MC_VERSION=$(zenity --entry --title="Enter Minecraft Version" --text="Enter any stable version of Minecraft (Press Enter to select the latest):")
+
+    LATEST_VER=$(sudo curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json | jq -r '.latest.release')
+
+    if [ -z "$MC_VERSION" ]; then
+        VER_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq --arg VERSION $LATEST_VER -r '.versions | .[] | select(.id== $VERSION )|.url')
+    else
+        VER_URL=$(curl -sSL https://launchermeta.mojang.com/mc/game/version_manifest.json | jq --arg VERSION "$MC_VERSION" -r '.versions | .[] | select(.id == $VERSION) | .url')
+    fi
+
+    if [ -z "$VER_URL" ]; then
+        zenity --error --title="Error" --text="Invalid Minecraft version: $MC_VERSION"
+    fi
+
+    DOWNLOAD_URL=$(curl -sSL "$VER_URL" | jq -r '.downloads.server.url')
+
+    curl -o start.jar $DOWNLOAD_URL
+
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt #EULA
+
+    zenity --info --title="Success!" --text="Vanilla ${MC_VERSION} downloaded successfully!"
+    zenity --question --title="Minever" --text="Do you want to start the server now?"
+    if [ $? -eq 0 ]; then
+
+        # Cool Loading bar
+        (
+            echo "10"
+            sleep 3
+            echo "50"
+            sleep 7
+            echo "100"
+        ) | zenity --progress --pulsate --auto-close --width=400 --text="Starting server..." &
+
+        echo "Starting the server..."
+        cd ../script
+        ./start
+
+    else
+
+        echo "Going back to setup..."
+        ./Minever
+    fi
+}
+
+paper() {
+
+    MC_VERSION=$(zenity --entry --title="PaperMC Version" --text="Enter a Minecraft version (Press Enter to select the latest):")
+
+    if test -d $PWD/server; then
+        rm -r server
+    fi
+    mkdir -p $PWD/server && cd $PWD/server
+
+    API_URL="https://papermc.io/api/v2/projects/paper"
+
+    if [ -z "$MC_VERSION" ]; then
+        LATEST_VERSION=$(curl -s ${API_URL} | jq -r '.versions' | jq -r '.[-1]')
+        MC_VERSION="${LATEST_VERSION}"
+        LATEST_BUILD=$(curl -s ${API_URL}/versions/${LATEST_VERSION} | jq -r '.builds | .[-1]')
+        VERSION="${LATEST_VERSION}-${LATEST_BUILD}"
+        DOWNLOAD_URL="${API_URL}/versions/${LATEST_VERSION}/builds/${LATEST_BUILD}/downloads/paper-${VERSION}.jar"
+    else
+        VER_BUILD=$(curl -s ${API_URL}/versions/${MC_VERSION} | jq -r '.builds | .[-1]')
+        VERSION="${MC_VERSION}-${VER_BUILD}"
+        DOWNLOAD_URL="${API_URL}/versions/${MC_VERSION}/builds/${VER_BUILD}/downloads/paper-${VERSION}.jar"
+    fi
+
+    # Download the PaperMC JAR
+    curl -o start.jar -L "${DOWNLOAD_URL}"
+
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt #EULA
+
+    zenity --info --title="Success!" --text="PaperMC ${VERSION} downloaded successfully!"
+
+    zenity --question --title="Minever" --text="Do you want to start the server now?"
+    if [ $? -eq 0 ]; then
+
+        # Cool Loading Bar
+        (
+            echo "10"
+            sleep 3
+            echo "50"
+            sleep 7
+            echo "100"
+        ) | zenity --progress --pulsate --auto-close --width=400 --text="Starting server..." &
+
+        echo "Starting the server..."
+        cd ../script
+        ./start
+    else
+
+        echo "Going back to setup..."
+        ./Minever
+    fi
+}
+
+fabric() {
+
+    if test -d $PWD/server; then
+        rm -r server
+    fi
+    mkdir -p $PWD/server && cd $PWD/server
+
+    MC_VERSION=$(zenity --entry --title="Fabric Installer" --text="Enter a stable version of Minecraft (Press Enter to select the latest):")
+
+    # Check if the MC_VERSION is empty and set it to the latest version if needed
+    if [ -z "$MC_VERSION" ]; then
+        MC_VERSION=$(curl -sSL https://meta.fabricmc.net/v2/versions/game | jq -r '.[] | select(.stable==true) | .version' | head -n1)
+        FABRIC_VERSION=$(curl -sSL https://meta.fabricmc.net/v2/versions/installer | jq -r '.[0].version')
+    fi
+
+    FABRIC_VERSION=$(curl -sSL https://meta.fabricmc.net/v2/versions/installer | jq -r '.[0].version')
+    curl -o FabricInstaller.jar -L "https://maven.fabricmc.net/net/fabricmc/fabric-installer/$FABRIC_VERSION/fabric-installer-$FABRIC_VERSION.jar"
+
+    if ! command -v java &>/dev/null || ! dpkg -l | grep -q 'openjdk.*-jre-headless'; then
+        echo -e "\e[33mInstalling java...\e[0m"
+        sudo apt install openjdk-17-jre-headless -y -qq
+        echo -e "\e[32mDependencies Installed!\e[0m"
+    fi
+
+    java -jar FabricInstaller.jar server -mcversion $MC_VERSION -downloadMinecraft
+
+    mv fabric-server-launch.jar start.jar
+
+    wget -O eula.txt https://cdn.discordapp.com/attachments/772003388455125002/1148153568877097062/eula.txt #EULA
+
+    zenity --info --title="Success!" --text="Fabric $MC_VERSION Installed"
+    zenity --question --title="Minever" --text="Do you want to start the server now?"
+    if [ $? -eq 0 ]; then
+
+        # Cool Loading bar
+        (
+            echo "10"
+            sleep 3
+            echo "50"
+            sleep 7
+            echo "100"
+        ) | zenity --progress --pulsate --auto-close --width=400 --text="Starting server..." &
+
+        echo "Starting the server..."
+        cd ../script
+        ./start
+
+    else
+
+        echo "Going back to setup..."
+        ./Minever
+    fi
+
+}
+
+install() {
+    choice=$(
+        zenity --list --title="Install server" --text="Select which Server you want: " --column="Choice" --width=400 --height=400 \
+            "Vanilla" \
+            "Paper" \
+            "Fabric"
+    )
+
+    if [ $? -ne 0 ]; then
+        zenity --info --title="Info" --text="Exited Setup."
+        exit
+    fi
+
+    case "$choice" in
+    "Vanilla")
+        vanilla
+        ;;
+    "Paper")
+        paper
+        ;;
+    "Fabric")
+        fabric
+        ;;
+    *)
+        zenity --error --title="Error" --text="Invalid choice!"
+        ./Minever
+        ;;
+    esac
+}
+
+reinstall() {
+    zenity --question --title="Server Reinstallation" \
+        --text="This operation will reinstall and erase your existing server. Are you sure?" \
+        --ok-label="Yes" --cancel-label="No"
+
+    response=$?
+
+    if [ $response -eq 1 ]; then
+        echo -e "\e[32mReinstallation cancelled\e[0m"
+        exit 0
+    fi
+
+    server_types=("Vanilla" "Paper" "Fabric")
+    choice=$(zenity --list --title="Choose Server Type" --text="" \
+        --column="Server Type" "${server_types[@]}")
+
+    case "$choice" in
+    "Vanilla")
+        echo "You've selected Vanilla"
+        echo -e "-\e[33mReinstalling \e[32mVanilla\e[0m"
+
+        vanilla
+        # Add Vanilla installation logic here
+        ;;
+    "Paper")
+        echo "You've selected Paper"
+        echo -e "-\e[33mReinstalling \e[32mPaper\e[0m"
+        # Add Paper installation logic here
+
+        paper
+        ;;
+    "Fabric")
+        echo "You've selected Fabric"
+        echo -e "-\e[33mReinstalling \e[32mFabric\e[0m"
+        # Add Fabric installation logic here
+
+        fabric
+        ;;
+    *)
+        echo -e "-\e[33mInvalid choice, please try again\e[0m"
+        exit 0
+        ;;
+    esac
+
+}
+
+uninstall_server() {
+    if zenity --question --title="Uninstall Server" --text="This will completely wipe out your server. Are you sure?"; then
+        if test -d server; then
+
+            # Cool loading bar
+            (
+                echo "10"
+                sleep 1
+                echo "50"
+                sleep 1
+                echo "100"
+            ) | zenity --progress --pulsate --auto-close --width=400 --text="Uninstalling server..." &
+
+
+            rm -rdf server
+            zenity --info --title="Uninstallation Complete" --text="The server has been uninstalled. Run ./Minever to install a new server."
+        else
+            zenity --error --title="Error" --text="No server found."
+        fi
+    else
+        zenity --info --title="Uninstallation Cancelled" --text="Server uninstallation cancelled."
+    fi
+}
+
+uninstall_java() {
+
+    sudo apt purge -y openjdk-\* >/dev/null 2>&1
+    sudo apt autoremove -y >/dev/null 2>&1
+    sudo apt clean >/dev/null 2>&1
+    sudo rm -rf /usr/lib/jvm/
+    sudo rm -rf /usr/local/java/
+    sudo rm -rf /usr/local/jdk/
+    sudo rm -rf ~/.java
+
+}

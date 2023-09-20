@@ -1,0 +1,109 @@
+#!/bin/bash
+exec > >(tee -ia "$PWD/../script.log") 2>&1
+ngrok() {
+
+    NGROK_FILE="$PWD/scirpt/ngrok"
+    NGROK_URL="https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip"
+
+    if [ -s "$NGROK_FILE" ]; then
+        zenity --info --title="Ngrok Installation" --text="Ngrok is already installed."
+    else
+        wget -q "$NGROK_URL" -O /tmp/ngrok.zip
+        if ! command -v unzip &>/dev/null; then
+        sudo apt install unzip
+        fi
+        unzip -q /tmp/ngrok.zip -d $PWD/script/ -y
+
+        zenity --info --title="Ngrok Installation" --text="Ngrok has been downloaded successfully. Please follow these steps to obtain your Authtoken:\n\n1. Sign up at Ngrok: https://ngrok.com/\n2. Go to https://dashboard.ngrok.com/get-started/your-authtoken\n3. Enter your Authtoken in the next dialog box."
+
+        AUTHTOKEN=$(zenity --entry --title="Enter Ngrok Authtoken" --text="Enter your Ngrok Authtoken:" --hide-text)
+
+        if [ -n "$AUTHTOKEN" ]; then
+            "$NGROK_FILE" authtoken "$AUTHTOKEN"
+            chmod +x "$NGROK_FILE"
+            zenity --info --title="Ngrok Installation" --text="Ngrok has been configured with your Authtoken."
+        else
+            zenity --info --title="Ngrok Installation" --text="No Authtoken provided. Ngrok setup is incomplete."
+        fi
+    fi
+
+}
+java() {
+
+    java_version=$(zenity --list --title="Java Configuration" --text="Select Java version:" --column="Version" --column="Description" --width=800 --height=400 \
+        "Java-17" "All Minecraft versions (Default)" \
+        "Java-11" "Minecraft versions 1.17 and above" \
+        "Java-8" "Minecraft versions 1.16 and below" \
+        "Uninstall Java" "Uninstall Java")
+
+    if [ $? -eq 0 ]; then
+        case "$java_version" in
+        "Java-17" | "Java-11" | "Java-8")
+            # Install the selected Java version or display an error if it's already installed
+            if ! command -v java &>/dev/null; then
+                sudo apt install "openjdk-${java_version:5}-jre-headless" -qq -y >/dev/null 2>&1
+                zenity --info --text="Java $java_version has been installed!"
+            else
+                zenity --info --text="Java-$java_version installed (or already installed)"
+            fi
+            ;;
+        "Uninstall Java")
+            # Uninstall Java
+            if command -v java &>/dev/null; then
+                uninstall_java
+                zenity --info --text="Java has been uninstalled!"
+            else
+                zenity --info --text="No Java installation found"
+            fi
+            ;;
+        *)
+            zenity --error --text="Invalid Java version selection."
+            ;;
+        esac
+    fi
+}
+bpytop() {
+
+    FILE="$HOME/.local/bin/bpytop"
+
+    if [ -f "$FILE" ]; then
+        zenity --info --title="bpytop Installation" --text="bpytop (AFK APP RUNNING) is already installed." --width=400
+    else
+        zenity --info --title="bpytop Installation" --text="bpytop is not installed. Installing AFK app (This may take some time)..." --width=400
+
+        python3 -m pip install bpytop &>/dev/null
+
+        if [ $? -eq 0 ]; then
+            chmod +x "$FILE"
+            zenity --info --title="bpytop Installation" --text="bpytop has been successfully installed." --width=400 --center
+            "$FILE"
+        else
+            zenity --error --title="bpytop Installation" --text="Installation failed. Please check your Python environment and try again." --width=400
+        fi
+    fi
+
+}
+clear_logs() {
+    if ! test -d $PWD/server; then
+        echo -e "--No Logs available"
+        zenity --info --text="No Logs available!"
+        ./../Minever
+    else
+        rm -r $PWD/server/Logs/*
+        echo -e "\e[32m--Server Logs cleared!\e[0m"
+
+        (
+            echo "10"
+            sleep 0.5
+            echo "50"
+            sleep 0.3
+            echo "100"
+        ) | zenity --progress --pulsate --auto-close --width=400 --text="Clearing server logs..."
+
+        zenity --info --text="Cleared server logs!"
+    fi
+}
+display_error() {
+    zenity --error --title="Error" --text="An error occurred. Please check the log for details."
+    zenity --text-info --title="Log" --filename="../script.log"
+}
