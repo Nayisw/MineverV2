@@ -2,9 +2,9 @@
 
 # Check and install dependencies
 install_dependencies() {
-    if !command -v venity &>/dev/null; then
+    if !command -v zenity &>/dev/null; then
         echo -e "\e[33mInstalling required dependencies...\e[0m"
-        sudo apt install venity -y >/dev/null 2>&1
+        sudo apt install zenity -y >/dev/null 2>&1
         echo -e "\e[32mDependencies Installed!\e[0m"
     fi
 }
