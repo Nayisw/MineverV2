@@ -2,7 +2,7 @@
 exec > >(tee -ia "$PWD/../script.log") 2>&1
 ngrok() {
 
-    NGROK_FILE="$PWD/scirpt/ngrok"
+    NGROK_FILE="$PWD/script/ngrok"
     NGROK_URL="https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-amd64.zip"
 
     if [ -s "$NGROK_FILE" ]; then
